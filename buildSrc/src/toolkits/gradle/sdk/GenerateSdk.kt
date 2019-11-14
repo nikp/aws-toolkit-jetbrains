@@ -11,9 +11,12 @@ import org.gradle.api.tasks.TaskAction
 import software.amazon.awssdk.codegen.C2jModels
 import software.amazon.awssdk.codegen.CodeGenerator
 import software.amazon.awssdk.codegen.model.config.customization.CustomizationConfig
+import software.amazon.awssdk.codegen.model.service.Paginators
 import software.amazon.awssdk.codegen.model.service.ServiceModel
+import software.amazon.awssdk.codegen.model.service.Waiters
 import software.amazon.awssdk.codegen.utils.ModelLoaderUtils
 import java.io.File
+import java.lang.IllegalArgumentException
 
 /* ktlint-disable custom-ktlint-rules:log-not-lazy */
 open class GenerateSdk : DefaultTask() {
@@ -30,6 +33,8 @@ open class GenerateSdk : DefaultTask() {
         LOG.info("Generating SDK from $c2jFolder")
         val models = C2jModels.builder()
             .serviceModel(loadServiceModel())
+            .paginatorsModel(loadPaginatorsModel())
+            .waitersModel(loadWaitersModel())
             .customizationConfig(loadCustomizationConfig())
             .build()
 
@@ -41,8 +46,21 @@ open class GenerateSdk : DefaultTask() {
             .execute()
     }
 
-    private fun loadServiceModel(): ServiceModel? =
-        ModelLoaderUtils.loadModel(ServiceModel::class.java, File(c2jFolder, "service-2.json"))
+    private fun loadServiceModel(): ServiceModel =
+        loadModel("service-2.json")!!
+
+    private fun loadPaginatorsModel(): Paginators = loadModel("paginators-1.json", false) ?: Paginators.none()
+
+    private fun loadWaitersModel(): Waiters = loadModel("waiters-2.json", false) ?: Waiters.none()
+
+    private inline fun <reified T> loadModel(modelFileName: String, required: Boolean = true): T? {
+        val modelFile = File(c2jFolder, modelFileName)
+        if (modelFile.exists())
+            return ModelLoaderUtils.loadModel(T::class.java, modelFile)
+        else if (required)
+            throw IllegalArgumentException("Unable to load model file $modelFileName")
+        return null
+    }
 
     private fun loadCustomizationConfig(): CustomizationConfig = ModelLoaderUtils.loadOptionalModel(
         CustomizationConfig::class.java,
